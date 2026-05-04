@@ -16,7 +16,7 @@ const statusColors = {
   Penuh: "#ef4444",
 };
 
-const DEFAULT_CENTER = [-6.914744, 107.60981];
+const DEFAULT_CENTER = [-2.9925, 120.1969];
 
 export function MapPage({ compact = false, token }) {
   const [locations, setLocations] = useState([]);
@@ -31,7 +31,7 @@ export function MapPage({ compact = false, token }) {
 
   useEffect(() => {
     axios
-      .get("https://api.open-meteo.com/v1/forecast?latitude=-6.91&longitude=107.61&current=temperature_2m,weather_code")
+      .get("https://api.open-meteo.com/v1/forecast?latitude=-2.99&longitude=120.19&current=temperature_2m,weather_code")
       .then((res) => setWeather(`${res.data.current.temperature_2m}°C`))
       .catch(() => setWeather("Tidak tersedia"));
   }, []);

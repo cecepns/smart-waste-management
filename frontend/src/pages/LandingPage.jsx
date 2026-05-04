@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Leaf, LogIn, Recycle, RotateCcw, X, Zap, UserPlus } from "lucide-react";
+import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import { api, apiBase } from "../api/client";
 import heroImage from "../assets/landing-hero.png";
 import logo from "../assets/logo.png";
 
@@ -31,10 +34,37 @@ const principles = [
   },
 ];
 
+const PALOPO_CENTER = [-2.9925, 120.1969];
+const mapStatusColors = {
+  Bersih: "#22c55e",
+  Sedang: "#eab308",
+  Penuh: "#ef4444",
+};
+
 /** Halaman depan publik: ajakan masuk atau daftar */
 export function LandingPage() {
   const [activePrinciple, setActivePrinciple] = useState(null);
+  const [mapReports, setMapReports] = useState([]);
   const selectedPrinciple = principles.find((item) => item.key === activePrinciple) || null;
+  const mapMarkers = useMemo(
+    () =>
+      mapReports
+        .map((row) => ({
+          ...row,
+          lat: Number(row.latitude),
+          lng: Number(row.longitude),
+          fill: mapStatusColors[row.status] || "#64748b",
+        }))
+        .filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng)),
+    [mapReports]
+  );
+
+  useEffect(() => {
+    api
+      .get("/public/reports-map")
+      .then((res) => setMapReports(res.data.data || []))
+      .catch(() => setMapReports([]));
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
@@ -110,6 +140,63 @@ export function LandingPage() {
             </div>
           </div>
         </div>
+
+        <section className="relative mx-auto w-full max-w-6xl px-4 pb-10 md:px-6 md:pb-14">
+          <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur-sm md:p-6">
+            <div className="mb-4">
+              <h2 className="text-center text-2xl font-bold text-emerald-800 md:text-3xl">Peta Seluruh Laporan</h2>
+              <p className="mt-2 text-center text-sm text-slate-500 md:text-base">
+                Pantau sebaran laporan warga secara real-time di sekitar Kota Palopo.
+              </p>
+            </div>
+            <MapContainer
+              center={PALOPO_CENTER}
+              zoom={12}
+              scrollWheelZoom
+              style={{ height: "420px", width: "100%", borderRadius: "16px", zIndex: 0 }}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {mapMarkers.map((item) => (
+                <CircleMarker
+                  key={item.id}
+                  center={[item.lat, item.lng]}
+                  radius={10}
+                  pathOptions={{
+                    color: "#fff",
+                    weight: 2,
+                    fillColor: item.fill,
+                    fillOpacity: 0.9,
+                  }}
+                >
+                  <Popup>
+                    <div className="max-w-[220px] text-sm">
+                      <p className="font-semibold">{item.location_name}</p>
+                      <p>Status titik: {item.status}</p>
+                      <p>Status laporan: {item.report_status}</p>
+                      {item.photo_url && (
+                        <a
+                          href={`${apiBase}${item.photo_url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 block overflow-hidden rounded ring-1 ring-slate-200 transition hover:opacity-90"
+                        >
+                          <img
+                            src={`${apiBase}${item.photo_url}`}
+                            alt={item.location_name}
+                            className="h-24 w-full object-cover"
+                          />
+                        </a>
+                      )}
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
+            </MapContainer>
+          </div>
+        </section>
 
         <section className="relative mx-auto w-full max-w-6xl px-4 pb-14 md:px-6 md:pb-20">
           <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur-sm md:p-8">

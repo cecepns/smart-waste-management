@@ -255,6 +255,23 @@ app.post("/api/reports", auth, async (req, res) => {
   }
 });
 
+/** Endpoint publik untuk menampilkan peta laporan pada landing page */
+app.get("/api/public/reports-map", async (_req, res) => {
+  try {
+    const [rows] = await db.execute(
+      `SELECT id, location_name, latitude, longitude, status, photo_url, report_status, updated_at
+       FROM reports
+       WHERE latitude IS NOT NULL
+         AND longitude IS NOT NULL
+       ORDER BY created_at DESC
+       LIMIT 300`
+    );
+    res.json({ data: rows });
+  } catch (error) {
+    res.status(500).json({ message: "Gagal ambil data peta publik", error: error.message });
+  }
+});
+
 app.get("/api/reports", auth, adminOnly, async (req, res) => {
   try {
     const { page, perPage, offset } = getPagination(req.query);

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Compressor from "compressorjs";
 import toast from "react-hot-toast";
 import { Camera, Images, Send, X } from "lucide-react";
 import { api } from "../api/client";
@@ -16,6 +17,46 @@ const GET_ATTEMPTS = [
 ];
 
 const INITIAL_REPORT_FORM = { locationId: "", locationName: "", status: "Bersih", notes: "", latitude: "", longitude: "" };
+const MAX_IMAGE_BYTES = 600 * 1024;
+
+function compressWithCompressor(file, options) {
+  return new Promise((resolve, reject) => {
+    new Compressor(file, {
+      ...options,
+      success: (result) => {
+        const ext = result.type === "image/png" ? "png" : "jpg";
+        resolve(new File([result], `laporan-${Date.now()}.${ext}`, { type: result.type || "image/jpeg" }));
+      },
+      error: reject,
+    });
+  });
+}
+
+async function compressImageToLimit(file) {
+  const attempts = [
+    { quality: 0.82, maxWidth: 1920, convertSize: 0 },
+    { quality: 0.72, maxWidth: 1600, convertSize: 0 },
+    { quality: 0.62, maxWidth: 1366, convertSize: 0 },
+    { quality: 0.52, maxWidth: 1280, convertSize: 0 },
+    { quality: 0.42, maxWidth: 1024, convertSize: 0 },
+  ];
+
+  let latest = file;
+  for (const attempt of attempts) {
+    latest = await compressWithCompressor(latest, {
+      quality: attempt.quality,
+      maxWidth: attempt.maxWidth,
+      maxHeight: attempt.maxWidth,
+      mimeType: "image/jpeg",
+      convertTypes: "image/png,image/webp,image/heic,image/heif",
+      convertSize: attempt.convertSize,
+      checkOrientation: true,
+      strict: true,
+    });
+    if (latest.size <= MAX_IMAGE_BYTES) return latest;
+  }
+  return latest;
+}
 
 function readPosition(options) {
   return new Promise((resolve, reject) => {
@@ -105,6 +146,24 @@ export function ReportPage() {
     });
   };
 
+  const handlePickedPhoto = async (file) => {
+    if (!file) return;
+    const loadingId = toast.loading("Mengompres foto...");
+    try {
+      const compressed = await compressImageToLimit(file);
+      if (compressed.size > MAX_IMAGE_BYTES) {
+        toast.error("Foto terlalu besar setelah kompresi. Coba ambil ulang dengan jarak lebih dekat.");
+        return;
+      }
+      applyPhoto(compressed);
+      toast.success("Foto siap diunggah");
+    } catch {
+      toast.error("Gagal memproses foto. Coba pilih foto lain.");
+    } finally {
+      toast.dismiss(loadingId);
+    }
+  };
+
   const resetReportForm = () => {
     setForm({ ...INITIAL_REPORT_FORM });
     setPhotoFile(null);
@@ -122,9 +181,9 @@ export function ReportPage() {
     };
   }, []);
 
-  const onPhotoInputChange = (e) => {
+  const onPhotoInputChange = async (e) => {
     const file = e.target.files?.[0];
-    applyPhoto(file);
+    await handlePickedPhoto(file);
     e.target.value = "";
   };
 
@@ -208,9 +267,8 @@ export function ReportPage() {
           return;
         }
         const file = new File([blob], `laporan-${Date.now()}.jpg`, { type: "image/jpeg" });
-        applyPhoto(file);
         closeCamera();
-        toast.success("Foto berhasil diambil");
+        handlePickedPhoto(file);
       },
       "image/jpeg",
       0.92
