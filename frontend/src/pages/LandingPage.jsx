@@ -82,7 +82,7 @@ export function LandingPage() {
       </main>
 
       <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-        Smart Waste Management — edukasi & partisipasi masyarakat untuk kota lebih bersih.
+        Kota Palopo — Smart Waste Management. Copyright: Ihwan Arifuddin (PKA 2026)
       </footer>
     </div>
   );
