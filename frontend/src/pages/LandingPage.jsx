@@ -4,7 +4,7 @@ import { ArrowRight, Leaf, LogIn, Recycle, RotateCcw, X, Zap, UserPlus } from "l
 import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { api, apiBase } from "../api/client";
-import heroImage from "../assets/landing-hero.png";
+import heroImage from "../assets/hero-image.jpeg";
 import logo from "../assets/logo.png";
 
 const principles = [
