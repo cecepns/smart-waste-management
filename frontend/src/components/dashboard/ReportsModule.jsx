@@ -26,6 +26,8 @@ export function ReportsModule() {
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({ totalPages: 1 });
+  /** Mencegah klik ganda pada aksi per baris (Setujui / popup Tolak & Hapus menangani sisanya) */
+  const [busyReportId, setBusyReportId] = useState(null);
   const load = () =>
     api.get(`/reports?page=${page}&perPage=10&search=${encodeURIComponent(q)}`).then((res) => {
       setRows(res.data.data);
@@ -66,22 +68,29 @@ export function ReportsModule() {
                     <>
                       <button
                         type="button"
-                        className="rounded bg-emerald-600 px-2 py-1 text-white"
+                        disabled={busyReportId === r.id}
+                        className="rounded bg-emerald-600 px-2 py-1 text-white disabled:cursor-not-allowed disabled:opacity-60"
                         onClick={async () => {
+                          if (busyReportId != null) return;
+                          setBusyReportId(r.id);
                           try {
                             await api.patch(`/reports/${r.id}/approve`);
                             toast.success("Laporan disetujui");
                             load();
                           } catch (err) {
                             toast.error(apiErr(err));
+                          } finally {
+                            setBusyReportId(null);
                           }
                         }}
                       >
-                        <CheckCircle2 size={14} className="inline" /> Setujui
+                        <CheckCircle2 size={14} className="inline" />{" "}
+                        {busyReportId === r.id ? "Memuat..." : "Setujui"}
                       </button>
                       <button
                         type="button"
-                        className="rounded bg-red-600 px-2 py-1 text-white"
+                        disabled={busyReportId === r.id}
+                        className="rounded bg-red-600 px-2 py-1 text-white disabled:cursor-not-allowed disabled:opacity-60"
                         onClick={() =>
                           confirmToast({
                             message: "Tolak laporan ini?",
@@ -100,7 +109,8 @@ export function ReportsModule() {
                   ) : (
                     <button
                       type="button"
-                      className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-800 hover:bg-slate-50"
+                      disabled={busyReportId === r.id}
+                      className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() =>
                         confirmToast({
                           message: "Hapus laporan dari daftar?",

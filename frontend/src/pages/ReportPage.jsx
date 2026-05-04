@@ -89,6 +89,7 @@ export function ReportPage() {
   const [preview, setPreview] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const galleryInputRef = useRef(null);
   const previewUrlRef = useRef("");
   const videoRef = useRef(null);
@@ -278,10 +279,12 @@ export function ReportPage() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (!photoFile) {
       toast.error("Unggah foto terlebih dahulu — ambil dari kamera atau pilih dari galeri.");
       return;
     }
+    setSubmitting(true);
     try {
       const fd = new FormData();
       fd.append("photo", photoFile);
@@ -301,6 +304,8 @@ export function ReportPage() {
       resetReportForm();
     } catch (err) {
       toast.error(apiErr(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -311,15 +316,21 @@ export function ReportPage() {
         <label className="text-sm">
           Nama/ID Titik
           <input
-            className="mt-1 w-full rounded-md border p-2"
+            className="mt-1 w-full rounded-md border p-2 disabled:bg-slate-100"
             value={form.locationName}
             onChange={(e) => setForm({ ...form, locationName: e.target.value })}
             required
+            disabled={submitting}
           />
         </label>
         <label className="text-sm">
           Status
-          <select className="mt-1 w-full rounded-md border p-2" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+          <select
+            className="mt-1 w-full rounded-md border p-2 disabled:bg-slate-100"
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
+            disabled={submitting}
+          >
             <option>Bersih</option>
             <option>Sedang</option>
             <option>Penuh</option>
@@ -331,9 +342,10 @@ export function ReportPage() {
             type="text"
             inputMode="decimal"
             autoComplete="off"
-            className="mt-1 w-full rounded-md border p-2"
+            className="mt-1 w-full rounded-md border p-2 disabled:bg-slate-100"
             value={form.latitude}
             onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+            disabled={submitting}
           />
         </label>
         <label className="text-sm">
@@ -342,9 +354,10 @@ export function ReportPage() {
             type="text"
             inputMode="decimal"
             autoComplete="off"
-            className="mt-1 w-full rounded-md border p-2"
+            className="mt-1 w-full rounded-md border p-2 disabled:bg-slate-100"
             value={form.longitude}
             onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+            disabled={submitting}
           />
         </label>
         <div className="text-sm md:col-span-2">
@@ -355,16 +368,18 @@ export function ReportPage() {
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 min-[400px]:flex-initial"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 min-[400px]:flex-initial disabled:cursor-not-allowed disabled:opacity-50"
               onClick={openCamera}
+              disabled={submitting}
             >
               <Camera size={18} />
               Ambil foto (kamera)
             </button>
             <button
               type="button"
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-100 min-[400px]:flex-initial"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-100 min-[400px]:flex-initial disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => galleryInputRef.current?.click()}
+              disabled={submitting}
             >
               <Images size={18} />
               Galeri
@@ -375,15 +390,30 @@ export function ReportPage() {
         {preview && <img alt="preview" className="h-40 w-full rounded-md object-cover md:col-span-2" src={preview} />}
         <label className="text-sm md:col-span-2">
           Catatan Opsional
-          <textarea className="mt-1 w-full rounded-md border p-2" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          <textarea
+            className="mt-1 w-full rounded-md border p-2 disabled:bg-slate-100"
+            rows={3}
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            disabled={submitting}
+          />
         </label>
         <div className="flex flex-wrap gap-2 md:col-span-2">
-          <button type="button" className="rounded-md border px-3 py-2 text-sm" onClick={useMyLocation}>
+          <button
+            type="button"
+            className="rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={useMyLocation}
+            disabled={submitting}
+          >
             Gunakan Lokasi Saya
           </button>
-          <button type="submit" className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm text-white">
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={submitting}
+          >
             <Send size={14} />
-            Kirim Laporan
+            {submitting ? "Memuat..." : "Kirim Laporan"}
           </button>
         </div>
       </form>

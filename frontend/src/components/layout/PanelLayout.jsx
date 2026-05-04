@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
-import { Layers, LogOut, MapPin, Menu, Send, Shield, Users, X } from "lucide-react";
+import { BookOpen, Layers, LogOut, MapPin, Menu, Send, Shield, Users, X } from "lucide-react";
 import logo from "../../assets/logo.png";
 import { roleBadge } from "../../utils/roleBadge";
 
@@ -54,6 +54,10 @@ export function PanelLayout({ me, onLogout, children }) {
           <NavLink to="/report" className={navLinkClass} onClick={closeMobile}>
             <Send size={18} />
             Laporkan Kondisi
+          </NavLink>
+          <NavLink to="/edukasi" className={navLinkClass} onClick={closeMobile}>
+            <BookOpen size={18} />
+            Edukasi
           </NavLink>
 
           {isAdmin && (

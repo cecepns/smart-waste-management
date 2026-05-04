@@ -4,7 +4,8 @@ import { Toaster } from "react-hot-toast";
 import { api } from "./api/client";
 import { AdminRoute } from "./components/layout/AdminRoute";
 import { ProtectedShell } from "./components/layout/ProtectedShell";
-import { IndexRedirect } from "./pages/IndexRedirect";
+import { EducationPage } from "./pages/EducationPage";
+import { LandingPage } from "./pages/LandingPage";
 import { LocationsPage } from "./pages/dashboard/LocationsPage";
 import { ReportsPage } from "./pages/dashboard/ReportsPage";
 import { UsersPage } from "./pages/dashboard/UsersPage";
@@ -44,7 +45,7 @@ export default function App() {
   const onLogout = () => {
     tokenStore.remove();
     setToken(null);
-    navigate("/login", { replace: true });
+    navigate("/", { replace: true });
   };
 
   return (
@@ -65,6 +66,21 @@ export default function App() {
       />
       <Routes>
         <Route
+          path="/"
+          element={
+            token && !me ? (
+              <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-600">
+                Memuat sesi…
+              </div>
+            ) : token && me ? (
+              <Navigate to={me.role === "admin" ? "/dashboard/reports" : "/map"} replace />
+            ) : (
+              <LandingPage />
+            )
+          }
+        />
+
+        <Route
           path="/login"
           element={isLogged ? <Navigate to="/" replace /> : <LoginPage onSuccess={onLogin} />}
         />
@@ -73,15 +89,15 @@ export default function App() {
           element={isLogged ? <Navigate to="/" replace /> : <RegisterPage onSuccess={onLogin} />}
         />
 
-        <Route path="/" element={<ProtectedShell token={token} me={me} onLogout={onLogout} />}>
-          <Route index element={<IndexRedirect me={me} />} />
-          <Route path="map" element={<MapPage token={token} />} />
-          <Route path="report" element={<ReportPage />} />
-          <Route path="dashboard" element={<Navigate to="/dashboard/reports" replace />} />
+        <Route element={<ProtectedShell token={token} me={me} onLogout={onLogout} />}>
+          <Route path="/map" element={<MapPage token={token} />} />
+          <Route path="/report" element={<ReportPage />} />
+          <Route path="/edukasi" element={<EducationPage />} />
+          <Route path="/dashboard" element={<Navigate to="/dashboard/reports" replace />} />
           <Route element={<AdminRoute me={me} />}>
-            <Route path="dashboard/reports" element={<ReportsPage />} />
-            <Route path="dashboard/locations" element={<LocationsPage />} />
-            <Route path="dashboard/users" element={<UsersPage />} />
+            <Route path="/dashboard/reports" element={<ReportsPage />} />
+            <Route path="/dashboard/locations" element={<LocationsPage />} />
+            <Route path="/dashboard/users" element={<UsersPage />} />
           </Route>
         </Route>
 

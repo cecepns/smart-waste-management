@@ -1,12 +1,18 @@
 import { X } from "lucide-react";
 
-export function Modal({ title, onClose, children }) {
+export function Modal({ title, onClose, children, closeDisabled = false }) {
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/30 p-4">
       <div className="w-full max-w-md rounded-xl bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
           <h4 className="font-semibold">{title}</h4>
-          <button type="button" onClick={onClose}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={closeDisabled}
+            aria-disabled={closeDisabled}
+            className={closeDisabled ? "cursor-not-allowed rounded p-1 text-slate-400" : "rounded p-1 text-slate-600 hover:bg-slate-100"}
+          >
             <X size={16} />
           </button>
         </div>

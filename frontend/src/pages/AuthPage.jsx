@@ -8,10 +8,13 @@ import logo from "../assets/logo.png";
 
 export function AuthPage({ mode, onSuccess }) {
   const [form, setForm] = useState({ fullName: "", email: "", password: "" });
+  const [submitting, setSubmitting] = useState(false);
   const isRegister = mode === "register";
 
   const submit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const path = isRegister ? "/auth/register" : "/auth/login";
       /* Registrasi publik hanya untuk peran warga; admin ditambah dari panel admin */
@@ -21,6 +24,8 @@ export function AuthPage({ mode, onSuccess }) {
       onSuccess(res.data.token);
     } catch (err) {
       toast.error(apiErr(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -41,38 +46,45 @@ export function AuthPage({ mode, onSuccess }) {
               <label className="block text-sm">
                 Nama Lengkap
                 <input
-                  className="mt-1 w-full rounded-md border p-2"
+                  className="mt-1 w-full rounded-md border p-2 disabled:bg-slate-100"
                   value={form.fullName}
                   onChange={(e) => setForm({ ...form, fullName: e.target.value })}
                   required
+                  disabled={submitting}
                 />
               </label>
             )}
             <label className="block text-sm">
               Email
               <input
-                className="mt-1 w-full rounded-md border p-2"
+                className="mt-1 w-full rounded-md border p-2 disabled:bg-slate-100"
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 required
+                disabled={submitting}
               />
             </label>
             <label className="block text-sm">
               Password
               <input
-                className="mt-1 w-full rounded-md border p-2"
+                className="mt-1 w-full rounded-md border p-2 disabled:bg-slate-100"
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 required
+                disabled={submitting}
               />
             </label>
             {isRegister && (
               <p className="text-xs text-slate-500">Pendaftaran sebagai <strong className="text-slate-700">warga</strong>. Akun admin dibuat oleh administrator.</p>
             )}
-            <button className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 p-2 text-white" type="submit">
-              <LogIn size={16} /> {isRegister ? "Daftar" : "Masuk"}
+            <button
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 p-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
+              type="submit"
+              disabled={submitting}
+            >
+              <LogIn size={16} /> {submitting ? "Memuat..." : isRegister ? "Daftar" : "Masuk"}
             </button>
           </form>
         </div>
