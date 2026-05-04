@@ -1,0 +1,99 @@
+import { useState } from "react";
+import toast from "react-hot-toast";
+import { LogIn } from "lucide-react";
+import { Link } from "react-router-dom";
+import { api } from "../api/client";
+import { apiErr } from "../utils/errors";
+import logo from "../assets/logo.png";
+
+export function AuthPage({ mode, onSuccess }) {
+  const [form, setForm] = useState({ fullName: "", email: "", password: "" });
+  const isRegister = mode === "register";
+
+  const submit = async (e) => {
+    e.preventDefault();
+    try {
+      const path = isRegister ? "/auth/register" : "/auth/login";
+      /* Registrasi publik hanya untuk peran warga; admin ditambah dari panel admin */
+      const payload = isRegister ? { fullName: form.fullName, email: form.email, password: form.password } : { email: form.email, password: form.password };
+      const res = await api.post(path, payload);
+      toast.success(isRegister ? "Pendaftaran berhasil" : "Login berhasil");
+      onSuccess(res.data.token);
+    } catch (err) {
+      toast.error(apiErr(err));
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 px-4 py-10">
+      <div className="w-full max-w-md">
+        <div className="mb-8 flex justify-center">
+          <img
+            src={logo}
+            alt="Smart Waste Management"
+            className="h-28 w-auto max-w-[260px] object-contain object-center md:h-32"
+          />
+        </div>
+        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/80">
+          <h2 className="mb-4 text-center text-xl font-semibold text-slate-800">{isRegister ? "Register" : "Login"}</h2>
+          <form className="space-y-3" onSubmit={submit}>
+            {isRegister && (
+              <label className="block text-sm">
+                Nama Lengkap
+                <input
+                  className="mt-1 w-full rounded-md border p-2"
+                  value={form.fullName}
+                  onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                  required
+                />
+              </label>
+            )}
+            <label className="block text-sm">
+              Email
+              <input
+                className="mt-1 w-full rounded-md border p-2"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                required
+              />
+            </label>
+            <label className="block text-sm">
+              Password
+              <input
+                className="mt-1 w-full rounded-md border p-2"
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                required
+              />
+            </label>
+            {isRegister && (
+              <p className="text-xs text-slate-500">Pendaftaran sebagai <strong className="text-slate-700">warga</strong>. Akun admin dibuat oleh administrator.</p>
+            )}
+            <button className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 p-2 text-white" type="submit">
+              <LogIn size={16} /> {isRegister ? "Daftar" : "Masuk"}
+            </button>
+          </form>
+        </div>
+        <p className="mt-6 text-center text-sm text-slate-600">
+          {isRegister ? (
+            <>
+              Sudah punya akun?{" "}
+              <Link to="/login" className="font-medium text-emerald-700 hover:text-emerald-800">
+                Masuk
+              </Link>
+            </>
+          ) : (
+            <>
+              Belum punya akun?{" "}
+              <Link to="/register" className="font-medium text-emerald-700 hover:text-emerald-800">
+                Daftar
+              </Link>
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
