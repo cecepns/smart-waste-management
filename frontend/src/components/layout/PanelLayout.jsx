@@ -33,7 +33,7 @@ export function PanelLayout({ me, onLogout, children }) {
       >
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-100 px-4 lg:h-16">
           <NavLink to="/" onClick={closeMobile} className="min-w-0 flex-1">
-            <img src={logo} alt="Smart Waste Management" className="h-9 w-auto max-w-[92%] object-contain object-left" />
+            <img src={logo} alt="SOMPAH PALOPO" className="h-9 w-auto max-w-[92%] object-contain object-left" />
           </NavLink>
           <button
             type="button"

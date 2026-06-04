@@ -35,7 +35,7 @@ export function AuthPage({ mode, onSuccess }) {
         <div className="mb-8 flex justify-center">
           <img
             src={logo}
-            alt="Smart Waste Management"
+            alt="SOMPAH PALOPO"
             className="h-28 w-auto max-w-[260px] object-contain object-center md:h-32"
           />
         </div>

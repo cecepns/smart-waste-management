@@ -70,7 +70,7 @@ export function LandingPage() {
     <div className="flex min-h-screen flex-col bg-slate-50">
       <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
-          <img src={logo} alt="Smart Waste Management" className="h-14 md:h-16 w-auto object-contain object-left md:h-11" />
+          <img src={logo} alt="SOMPAH PALOPO" className="h-14 md:h-16 w-auto object-contain object-left md:h-11" />
           <div className="flex shrink-0 items-center gap-2">
             <Link
               to="/login"
@@ -259,7 +259,7 @@ export function LandingPage() {
       )}
 
       <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-        Kota Palopo — Smart Waste Management. Copyright: Ihwan Arifuddin (PKA 2026)
+        Kota Palopo — SOMPAH PALOPO. Copyright: Ihwan Arifuddin (PKA 2026)
       </footer>
     </div>
   );

@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Smart Waste Management backend",
+  "description": "SOMPAH PALOPO backend",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",

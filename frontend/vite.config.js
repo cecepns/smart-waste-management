@@ -10,7 +10,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['vite.svg'],
       manifest: {
-        name: 'Smart Waste Management',
+        name: 'SOMPAH PALOPO',
         short_name: 'SmartWaste',
         description: 'Aplikasi monitoring timbulan sampah real-time',
         theme_color: '#16a34a',
