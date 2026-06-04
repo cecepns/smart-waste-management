@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
-import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
+import { CircleMarker, MapContainer, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { Leaf, CloudSun } from "lucide-react";
 import { api, apiBase } from "../api/client";
@@ -16,12 +16,31 @@ const statusColors = {
   Penuh: "#ef4444",
 };
 
+const getMarkerRadius = (zoom) => {
+  if (zoom >= 18) return 14;
+  if (zoom >= 16) return 12;
+  if (zoom >= 14) return 9;
+  if (zoom >= 12) return 6;
+  if (zoom >= 10) return 4;
+  return 2.5;
+};
+
+function MapZoomTracker({ onChange }) {
+  useMapEvents({
+    zoomend: (e) => {
+      onChange(e.target.getZoom());
+    },
+  });
+  return null;
+}
+
 const DEFAULT_CENTER = [-2.9925, 120.1969];
 
 export function MapPage({ compact = false, token }) {
   const [locations, setLocations] = useState([]);
   const [weather, setWeather] = useState("—");
   const [clock, setClock] = useState(() => dayjs().format("dddd, DD MMMM YYYY · HH:mm"));
+  const [zoom, setZoom] = useState(12);
 
   useEffect(() => {
     const tick = () => setClock(dayjs().format("dddd, DD MMMM YYYY · HH:mm"));
@@ -99,11 +118,12 @@ export function MapPage({ compact = false, token }) {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <MapZoomTracker onChange={setZoom} />
           {markers.map((item) => (
             <CircleMarker
               key={item.id}
               center={[item.lat, item.lng]}
-              radius={11}
+              radius={getMarkerRadius(zoom)}
               pathOptions={{
                 color: "#fff",
                 weight: 2,

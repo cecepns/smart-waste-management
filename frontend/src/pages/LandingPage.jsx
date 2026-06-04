@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Leaf, LogIn, Recycle, RotateCcw, X, Zap, UserPlus } from "lucide-react";
-import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
+import { CircleMarker, MapContainer, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { api, apiBase } from "../api/client";
 import heroImage from "../assets/hero-image.jpeg";
@@ -41,10 +41,29 @@ const mapStatusColors = {
   Penuh: "#ef4444",
 };
 
+const getMarkerRadius = (zoom) => {
+  if (zoom >= 18) return 14;
+  if (zoom >= 16) return 12;
+  if (zoom >= 14) return 9;
+  if (zoom >= 12) return 6;
+  if (zoom >= 10) return 4;
+  return 2.5;
+};
+
+function MapZoomTracker({ onChange }) {
+  useMapEvents({
+    zoomend: (e) => {
+      onChange(e.target.getZoom());
+    },
+  });
+  return null;
+}
+
 /** Halaman depan publik: ajakan masuk atau daftar */
 export function LandingPage() {
   const [activePrinciple, setActivePrinciple] = useState(null);
   const [mapReports, setMapReports] = useState([]);
+  const [zoom, setZoom] = useState(12);
   const selectedPrinciple = principles.find((item) => item.key === activePrinciple) || null;
   const mapMarkers = useMemo(
     () =>
@@ -159,11 +178,12 @@ export function LandingPage() {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+              <MapZoomTracker onChange={setZoom} />
               {mapMarkers.map((item) => (
                 <CircleMarker
                   key={item.id}
                   center={[item.lat, item.lng]}
-                  radius={10}
+                  radius={getMarkerRadius(zoom)}
                   pathOptions={{
                     color: "#fff",
                     weight: 2,
