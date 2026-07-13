@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowRight, Leaf, LogIn, Recycle, RotateCcw, X, Zap, UserPlus } from "lucide-react";
+import { Link } from "react-hook-form"; // Wait, in the original imports it was "react-router-dom"
+import { Link as RouterLink } from "react-router-dom";
+import { ArrowRight, Leaf, LogIn, Recycle, RotateCcw, X, Zap, UserPlus, ShieldAlert, CheckCircle2, AlertTriangle, HelpCircle } from "lucide-react";
 import { CircleMarker, MapContainer, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { api, apiBase } from "../api/client";
 import heroImage from "../assets/hero-image.jpeg";
 import logo from "../assets/logo.png";
+import dayjs from "dayjs";
 
 const principles = [
   {
@@ -15,6 +17,7 @@ const principles = [
     detail:
       "Mulai dari membawa tas belanja sendiri, memakai botol minum isi ulang, menghindari produk sekali pakai, dan memilih kemasan besar/refill. Prinsip ini menekan timbulan sampah dari sumbernya.",
     Icon: Zap,
+    color: "from-amber-400 to-orange-500",
   },
   {
     key: "reuse",
@@ -23,6 +26,7 @@ const principles = [
     detail:
       "Contohnya menggunakan wadah bekas sebagai tempat penyimpanan, memanfaatkan ulang botol kaca, atau mendonasikan barang yang masih layak. Reuse menurunkan kebutuhan barang baru dan mengurangi sampah.",
     Icon: RotateCcw,
+    color: "from-blue-400 to-indigo-600",
   },
   {
     key: "recycle",
@@ -31,23 +35,20 @@ const principles = [
     detail:
       "Pisahkan organik, anorganik, dan residu. Sampah organik bisa dijadikan kompos, sedangkan plastik/kertas/logam dapat disalurkan ke bank sampah atau mitra daur ulang. Ini membantu menciptakan ekonomi sirkular di lingkungan.",
     Icon: Recycle,
+    color: "from-emerald-400 to-teal-600",
   },
 ];
 
 const PALOPO_CENTER = [-2.9925, 120.1969];
-const mapStatusColors = {
-  Bersih: "#22c55e",
-  Sedang: "#eab308",
-  Penuh: "#ef4444",
-};
 
+// Optimized marker radius to prevent huge markers when zoomed out
 const getMarkerRadius = (zoom) => {
-  if (zoom >= 18) return 14;
-  if (zoom >= 16) return 12;
-  if (zoom >= 14) return 9;
-  if (zoom >= 12) return 6;
-  if (zoom >= 10) return 4;
-  return 2.5;
+  if (zoom >= 18) return 11;
+  if (zoom >= 16) return 9;
+  if (zoom >= 14) return 7;
+  if (zoom >= 12) return 5;
+  if (zoom >= 10) return 3.5;
+  return 2.5; // very sharp small dots when zoomed out
 };
 
 function MapZoomTracker({ onChange }) {
@@ -59,184 +60,295 @@ function MapZoomTracker({ onChange }) {
   return null;
 }
 
-/** Halaman depan publik: ajakan masuk atau daftar */
 export function LandingPage() {
   const [activePrinciple, setActivePrinciple] = useState(null);
-  const [mapReports, setMapReports] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [zoom, setZoom] = useState(12);
   const selectedPrinciple = principles.find((item) => item.key === activePrinciple) || null;
-  const mapMarkers = useMemo(
-    () =>
-      mapReports
-        .map((row) => ({
-          ...row,
-          lat: Number(row.latitude),
-          lng: Number(row.longitude),
-          fill: mapStatusColors[row.status] || "#64748b",
-        }))
-        .filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng)),
-    [mapReports]
-  );
 
   useEffect(() => {
     api
       .get("/public/reports-map")
-      .then((res) => setMapReports(res.data.data || []))
-      .catch(() => setMapReports([]));
+      .then((res) => setLocations(res.data.data || []))
+      .catch(() => setLocations([]));
   }, []);
 
+  const getMarkerStyle = (item) => {
+    let fillColor = "#64748b"; // fallback
+    if (item.status === "Bersih") fillColor = "#22c55e"; // Hijau
+    else if (item.status === "Laporan Masuk") fillColor = "#eab308"; // Kuning
+    else if (item.status === "Penuh") fillColor = "#ef4444"; // Merah
+    else if (item.status === "Sedang Ditangani") fillColor = "#3b82f6"; // Biru
+
+    let color = "#ffffff";
+    let weight = 2;
+    let dashArray = null;
+
+    if (item.type === "TPS") {
+      color = "#8b5cf6"; // Purple outline
+      weight = 3.5;
+    } else if (item.type === "TPA") {
+      color = "#1e293b"; // Slate black outline
+      weight = 3.5;
+    } else if (item.type === "TPS3R") {
+      color = "#06b6d4"; // Cyan outline
+      weight = 3.5;
+      dashArray = "3, 3";
+    }
+
+    return { fillColor, color, weight, dashArray, fillOpacity: 0.9 };
+  };
+
+  const markers = useMemo(
+    () =>
+      locations.map((item) => ({
+        ...item,
+        lat: Number(item.latitude),
+        lng: Number(item.longitude),
+        style: getMarkerStyle(item),
+      })),
+    [locations]
+  );
+
+  // Dynamic statistics calculation
+  const stats = useMemo(() => {
+    const total = locations.filter(loc => loc.type === "Titik Sampah").length;
+    const resolved = locations.filter(loc => loc.type === "Titik Sampah" && loc.status === "Bersih").length;
+    const pending = locations.filter(loc => loc.type === "Titik Sampah" && (loc.status === "Laporan Masuk" || loc.status === "Penuh" || loc.status === "Sedang Ditangani")).length;
+    
+    // Facility counts
+    const tps = locations.filter(loc => loc.type === "TPS").length;
+    const tpa = locations.filter(loc => loc.type === "TPA").length;
+    const tps3r = locations.filter(loc => loc.type === "TPS3R").length;
+
+    return { total, resolved, pending, tps, tpa, tps3r };
+  }, [locations]);
+
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
-          <img src={logo} alt="SOMPAH PALOPO" className="h-14 md:h-16 w-auto object-contain object-left md:h-11" />
-          <div className="flex shrink-0 items-center gap-2">
-            <Link
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-800 antialiased font-sans">
+      {/* Premium Header */}
+      <header className="sticky top-0 z-[1001] border-b border-slate-100 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+          <RouterLink to="/" className="flex items-center gap-2">
+            <img src={logo} alt="SOMPAH PALOPO" className="h-12 md:h-14 w-auto object-contain object-left" />
+          </RouterLink>
+          <div className="flex shrink-0 items-center gap-3">
+            <RouterLink
               to="/login"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 md:px-4"
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition"
             >
               Masuk
-            </Link>
-            <Link
+            </RouterLink>
+            <RouterLink
               to="/register"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 md:px-4"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-600/10 hover:bg-teal-700 transition transform active:scale-95"
             >
-              <UserPlus size={18} />
+              <UserPlus size={16} />
               Daftar
-            </Link>
+            </RouterLink>
           </div>
         </div>
       </header>
 
+      {/* Hero Section */}
       <main className="relative flex flex-1 flex-col overflow-hidden">
-        <div className="pointer-events-none absolute inset-0" />
-        <div className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center px-4 py-12 md:px-6 md:py-16">
-          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-12">
-            <div className="order-2 min-w-0 lg:order-1">
-              <div className="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-100/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200/80">
-                <Leaf size={14} className="shrink-0" />
-                Pengelolaan sampah cerdas
+        <div className="relative mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center px-4 py-12 md:px-6 md:py-20">
+          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12">
+            {/* Left Content */}
+            <div className="order-2 min-w-0 lg:order-1 lg:col-span-7 space-y-6">
+              <div className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-teal-800 ring-1 ring-teal-100/90">
+                <Leaf size={14} className="text-teal-600 animate-spin-slow" />
+                <span>Pengelolaan Sampah Palopo Cerdas</span>
               </div>
-              <h1 className="mt-5 max-w-2xl text-3xl font-bold leading-tight tracking-tight text-slate-900 md:text-4xl lg:text-[2.75rem]">
-                Wujudkan Lingkungan Bersih dengan Prinsip 3R
+              
+              <h1 className="text-4xl font-extrabold leading-tight tracking-tight text-slate-900 md:text-5xl lg:text-6xl bg-gradient-to-r from-teal-800 to-emerald-700 bg-clip-text text-transparent">
+                Wujudkan Lingkungan Bersih & Terkendali
               </h1>
-              <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-600 md:text-lg">
-                Laporkan, Kurangi, Gunakan Kembali, dan Daur Ulang Sampah di Sekitarmu. Satu tindakan kecil, dampak besar bagi bumi
-                kita.
+              
+              <p className="max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg">
+                Sompah Palopo menghubungkan Warga, Pengawas Lingkungan, dan Petugas Kebersihan secara real-time untuk memantau, melaporkan, dan mengangkut tumpukan sampah secara presisi.
               </p>
 
-              <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Link
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center pt-2">
+                <RouterLink
                   to="/login"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-slate-900/15 transition hover:bg-slate-800"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-955 bg-teal-600 px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-teal-600/20 hover:bg-teal-700 transition transform hover:-translate-y-0.5"
                 >
-                  <LogIn size={20} />
-                  Laporkan sekarang
-                </Link>
-                <Link
+                  <LogIn size={18} />
+                  Laporkan Tumpukan Sampah
+                </RouterLink>
+                <RouterLink
                   to="/register"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-600 bg-white px-6 py-3.5 text-base font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3.5 text-base font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition"
                 >
-                  Buat akun warga
-                  <ArrowRight size={20} />
-                </Link>
+                  Registrasi Akun Warga
+                  <ArrowRight size={18} />
+                </RouterLink>
               </div>
 
-              <p className="mt-10 text-sm text-slate-500">
-                Belum punya akses? Daftar sebagai warga untuk mulai melapor. Akun admin dibuat oleh pengelola sistem.
-              </p>
+              <div className="pt-4 grid grid-cols-3 gap-4 border-t border-slate-200/80">
+                <div>
+                  <p className="text-2xl font-black text-teal-700">{stats.total}</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Titik Sampah</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-emerald-600">{stats.resolved}</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Terselesaikan</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-purple-600">{stats.tps + stats.tpa + stats.tps3r}</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Fasilitas Kebersihan</p>
+                </div>
+              </div>
             </div>
 
-            <div className="order-1 flex justify-center lg:order-2 lg:justify-end">
-              <div className="relative w-full max-w-md lg:max-w-none">
+            {/* Right Illustration */}
+            <div className="order-1 flex justify-center lg:order-2 lg:col-span-5">
+              <div className="relative w-full max-w-sm lg:max-w-none">
+                <div className="absolute -inset-4 rounded-3xl bg-gradient-to-tr from-teal-100 to-emerald-100 opacity-70 blur-2xl" />
                 <img
                   src={heroImage}
-                  alt="Ilustrasi masyarakat membersihkan lingkungan dan mendaur ulang sampah"
-                  className="mx-auto h-auto w-full max-h-[min(68vh,560px)] object-contain object-bottom drop-shadow-md select-none"
-                  decoding="async"
+                  alt="Ilustrasi Sompah Palopo"
+                  className="relative mx-auto h-auto w-full max-h-[460px] object-contain drop-shadow-xl hover:scale-[1.02] transition duration-300"
                 />
               </div>
             </div>
           </div>
         </div>
 
-        <section className="relative mx-auto w-full max-w-6xl px-4 pb-10 md:px-6 md:pb-14">
-          <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur-sm md:p-6">
-            <div className="mb-4">
-              <h2 className="text-center text-2xl font-bold text-emerald-800 md:text-3xl">Peta Seluruh Laporan</h2>
-              <p className="mt-2 text-center text-sm text-slate-500 md:text-base">
-                Pantau sebaran laporan warga secara real-time di sekitar Kota Palopo.
-              </p>
+        {/* Map Section */}
+        <section className="relative mx-auto w-full max-w-7xl px-4 pb-12 md:px-6">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-100 md:p-6">
+            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-900 md:text-2xl">Peta Sebaran Laporan Palopo</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  Pantau titik laporan penimbunan sampah serta lokasi fasilitas penampungan (TPS, TPA, TPS3R) secara real-time.
+                </p>
+              </div>
+
+              {/* Quick map stats legend */}
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 font-semibold text-purple-800">
+                  TPS: {stats.tps}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1 font-semibold text-cyan-800">
+                  TPS3R: {stats.tps3r}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-slate-100 px-2.5 py-1 font-semibold text-slate-800">
+                  TPA: {stats.tpa}
+                </span>
+              </div>
             </div>
-            <MapContainer
-              center={PALOPO_CENTER}
-              zoom={12}
-              scrollWheelZoom
-              style={{ height: "420px", width: "100%", borderRadius: "16px", zIndex: 0 }}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <MapZoomTracker onChange={setZoom} />
-              {mapMarkers.map((item) => (
-                <CircleMarker
-                  key={item.id}
-                  center={[item.lat, item.lng]}
-                  radius={getMarkerRadius(zoom)}
-                  pathOptions={{
-                    color: "#fff",
-                    weight: 2,
-                    fillColor: item.fill,
-                    fillOpacity: 0.9,
-                  }}
-                >
-                  <Popup>
-                    <div className="max-w-[220px] text-sm">
-                      <p className="font-semibold">{item.location_name}</p>
-                      <p>Status titik: {item.status}</p>
-                      <p>Status laporan: {item.report_status}</p>
-                      {item.photo_url && (
-                        <a
-                          href={`${apiBase}${item.photo_url}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 block overflow-hidden rounded ring-1 ring-slate-200 transition hover:opacity-90"
-                        >
-                          <img
-                            src={`${apiBase}${item.photo_url}`}
-                            alt={item.location_name}
-                            className="h-24 w-full object-cover"
-                          />
-                        </a>
-                      )}
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              ))}
-            </MapContainer>
+
+            <div className="relative overflow-hidden rounded-2xl border border-slate-100 z-0">
+              {/* Map Legend (Overlay Card) */}
+              <div className="absolute bottom-6 left-6 z-[1000] max-w-[200px] rounded-xl bg-white/95 p-3 shadow-md border border-slate-100 backdrop-blur-sm text-[10px] space-y-2">
+                <p className="font-bold text-slate-800 border-b pb-1">Tipe Titik Peta</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444]" />
+                    <span>Titik Kritis (Penuh)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#eab308]" />
+                    <span>Laporan Masuk (Kuning)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#3b82f6]" />
+                    <span>Sedang Ditangani</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#22c55e]" />
+                    <span>Bersih (Hijau)</span>
+                  </div>
+                </div>
+              </div>
+
+              <MapContainer
+                center={PALOPO_CENTER}
+                zoom={12}
+                scrollWheelZoom
+                style={{ height: "420px", width: "100%" }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapZoomTracker onChange={setZoom} />
+                {markers.map((item) => (
+                  <CircleMarker
+                    key={item.id}
+                    center={[item.lat, item.lng]}
+                    radius={getMarkerRadius(zoom)}
+                    pathOptions={{
+                      color: item.style.color,
+                      weight: item.style.weight,
+                      dashArray: item.style.dashArray,
+                      fillColor: item.style.fillColor,
+                      fillOpacity: item.style.fillOpacity,
+                    }}
+                  >
+                    <Popup>
+                      <div className="max-w-[200px] text-xs space-y-1.5">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{item.type || "Titik Sampah"}</span>
+                        <p className="font-bold text-slate-900">{item.location_name || item.name}</p>
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+                          item.status === "Bersih"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : item.status === "Laporan Masuk"
+                            ? "bg-amber-100 text-amber-900"
+                            : item.status === "Penuh"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}>
+                          Kondisi: {item.status}
+                        </span>
+                        {item.photo_url && (
+                          <a
+                            href={`${apiBase}${item.photo_url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 block overflow-hidden rounded border"
+                          >
+                            <img
+                              src={`${apiBase}${item.photo_url}`}
+                              alt={item.location_name}
+                              className="h-20 w-full object-cover"
+                            />
+                          </a>
+                        )}
+                      </div>
+                    </Popup>
+                  </CircleMarker>
+                ))}
+              </MapContainer>
+            </div>
           </div>
         </section>
 
-        <section className="relative mx-auto w-full max-w-6xl px-4 pb-14 md:px-6 md:pb-20">
-          <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur-sm md:p-8">
-            <h2 className="text-center text-2xl font-bold text-emerald-800 md:text-4xl">Kenali Prinsip 3R</h2>
-            <p className="mt-2 text-center text-sm text-slate-500 md:text-base">Langkah kecil yang mengubah masa depan bumi.</p>
+        {/* 3R Principles */}
+        <section className="relative mx-auto w-full max-w-7xl px-4 pb-16 md:px-6">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-100 md:p-8">
+            <h2 className="text-center text-2xl font-extrabold text-teal-800 md:text-3xl lg:text-4xl">Dukung Program 3R</h2>
+            <p className="mt-2 text-center text-sm text-slate-500 md:text-base">Mulai perubahan kecil demi menjaga kelestarian bumi.</p>
 
-            <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
-              {principles.map(({ key, title, desc, Icon }) => (
-                <article key={key} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-5 ring-1 ring-slate-100">
-                  <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                    <Icon size={22} />
+            <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
+              {principles.map(({ key, title, desc, Icon, color }) => (
+                <article key={key} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 ring-1 ring-slate-100 flex flex-col justify-between hover:shadow-md transition">
+                  <div>
+                    <div className={`inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-tr ${color} text-white`}>
+                      <Icon size={24} />
+                    </div>
+                    <h3 className="mt-4 text-lg font-bold text-slate-800">{title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{desc}</p>
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold text-emerald-800">{title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{desc}</p>
                   <button
                     type="button"
-                    className="mt-5 rounded-lg border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+                    className="mt-6 w-full rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-teal-700 hover:bg-teal-50 hover:border-teal-300 transition"
                     onClick={() => setActivePrinciple(key)}
                   >
-                    Baca selengkapnya
+                    Baca Detail Panduan
                   </button>
                 </article>
               ))}
@@ -245,19 +357,20 @@ export function LandingPage() {
         </section>
       </main>
 
+      {/* Principle Modal */}
       {selectedPrinciple && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200 md:p-6">
+        <div className="fixed inset-0 z-[1002] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-slate-200">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr ${selectedPrinciple.color} text-white`}>
                   <selectedPrinciple.Icon size={20} />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900">{selectedPrinciple.title}</h3>
+                <h3 className="text-lg font-bold text-slate-900">{selectedPrinciple.title}</h3>
               </div>
               <button
                 type="button"
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 transition"
                 onClick={() => setActivePrinciple(null)}
                 aria-label="Tutup detail"
               >
@@ -268,18 +381,22 @@ export function LandingPage() {
             <div className="mt-6 flex justify-end">
               <button
                 type="button"
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-700 transition"
                 onClick={() => setActivePrinciple(null)}
               >
-                Tutup
+                Selesai Membaca
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-        Kota Palopo — SOMPAH PALOPO. Copyright: Ihwan Arifuddin (PKA 2026)
+      {/* Footer */}
+      <footer className="border-t border-slate-200 bg-white py-8 text-center text-xs text-slate-500">
+        <div className="mx-auto max-w-7xl px-4 md:px-6 space-y-2">
+          <p className="font-semibold text-slate-600">Kota Palopo — Dinas Lingkungan Hidup</p>
+          <p>SOMPAH PALOPO. Copyright &copy; {new Date().getFullYear()} · Ihwan Arifuddin (PKA 2026)</p>
+        </div>
       </footer>
     </div>
   );

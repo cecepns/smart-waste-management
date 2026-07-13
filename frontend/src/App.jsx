@@ -9,6 +9,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { LocationsPage } from "./pages/dashboard/LocationsPage";
 import { ReportsPage } from "./pages/dashboard/ReportsPage";
 import { UsersPage } from "./pages/dashboard/UsersPage";
+import { StatsPage } from "./pages/dashboard/StatsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MapPage } from "./pages/MapPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -90,7 +91,7 @@ export default function App() {
         />
 
         <Route element={<ProtectedShell token={token} me={me} onLogout={onLogout} />}>
-          <Route path="/map" element={<MapPage token={token} />} />
+          <Route path="/map" element={<MapPage token={token} me={me} />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/edukasi" element={<EducationPage />} />
           <Route path="/dashboard" element={<Navigate to="/dashboard/reports" replace />} />
@@ -98,6 +99,7 @@ export default function App() {
             <Route path="/dashboard/reports" element={<ReportsPage />} />
             <Route path="/dashboard/locations" element={<LocationsPage />} />
             <Route path="/dashboard/users" element={<UsersPage />} />
+            <Route path="/dashboard/stats" element={<StatsPage />} />
           </Route>
         </Route>
 

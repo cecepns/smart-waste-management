@@ -15,7 +15,7 @@ export function ProtectedShell({ token, me, onLogout }) {
   }
   return (
     <PanelLayout me={me} onLogout={onLogout}>
-      <Outlet />
+      <Outlet context={{ me }} />
     </PanelLayout>
   );
 }

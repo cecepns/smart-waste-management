@@ -5,7 +5,11 @@ import { Modal } from "../Modal";
 import { apiErr } from "../../utils/errors";
 
 export function UserModal({ initial, onClose, onDone }) {
-  const [f, setF] = useState({ fullName: initial.full_name, role: initial.role });
+  const [f, setF] = useState({ 
+    fullName: initial.full_name, 
+    role: initial.role, 
+    status: initial.status || "approved" 
+  });
   const [submitting, setSubmitting] = useState(false);
 
   return (
@@ -46,6 +50,22 @@ export function UserModal({ initial, onClose, onDone }) {
           >
             <option value="warga">Warga</option>
             <option value="admin">Admin</option>
+            <option value="pengawas">Pengawas Lingkungan</option>
+            <option value="armada">Petugas Armada</option>
+          </select>
+        </label>
+        <label className="block text-sm">
+          Status Persetujuan
+          <select
+            className="mt-1 w-full rounded border p-2 disabled:bg-slate-100"
+            value={f.status}
+            onChange={(e) => setF({ ...f, status: e.target.value })}
+            disabled={submitting}
+          >
+            <option value="pending">Menunggu Persetujuan</option>
+            <option value="approved">Aktif / Disetujui</option>
+            <option value="rejected">Ditolak</option>
+            <option value="inactive">Nonaktif</option>
           </select>
         </label>
         <button

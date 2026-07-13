@@ -10,6 +10,7 @@ export function LocationModal({ initial, onClose, onDone }) {
     latitude: initial.latitude || "",
     longitude: initial.longitude || "",
     status: initial.status || "Bersih",
+    type: initial.type || "Titik Sampah",
     notes: initial.notes || "",
     photo_url: initial.photo_url || "",
   });
@@ -44,6 +45,20 @@ export function LocationModal({ initial, onClose, onDone }) {
           />
         </label>
         <label className="block text-sm">
+          Tipe Lokasi
+          <select
+            className="mt-1 w-full rounded border p-2 disabled:bg-slate-100 bg-white font-medium"
+            value={f.type}
+            onChange={(e) => setF({ ...f, type: e.target.value })}
+            disabled={submitting}
+          >
+            <option value="Titik Sampah">Titik Sampah (Laporan Warga)</option>
+            <option value="TPS">TPS (Tempat Pembuangan Sementara)</option>
+            <option value="TPA">TPA (Tempat Pembuangan Akhir)</option>
+            <option value="TPS3R">TPS3R (TPS Reuse, Reduce, Recycle)</option>
+          </select>
+        </label>
+        <label className="block text-sm">
           Latitude
           <input
             className="mt-1 w-full rounded border p-2 disabled:bg-slate-100"
@@ -66,14 +81,15 @@ export function LocationModal({ initial, onClose, onDone }) {
         <label className="block text-sm">
           Status
           <select
-            className="mt-1 w-full rounded border p-2 disabled:bg-slate-100"
+            className="mt-1 w-full rounded border p-2 disabled:bg-slate-100 bg-white"
             value={f.status}
             onChange={(e) => setF({ ...f, status: e.target.value })}
             disabled={submitting}
           >
             <option>Bersih</option>
-            <option>Sedang</option>
+            <option>Laporan Masuk</option>
             <option>Penuh</option>
+            <option>Sedang Ditangani</option>
           </select>
         </label>
         <label className="block text-sm">

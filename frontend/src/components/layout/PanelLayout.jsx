@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
-import { BookOpen, Layers, LogOut, MapPin, Menu, Send, Shield, Users, X } from "lucide-react";
+import { BookOpen, Layers, LogOut, MapPin, Menu, Send, Shield, Users, X, BarChart3 } from "lucide-react";
 import logo from "../../assets/logo.png";
 import { roleBadge } from "../../utils/roleBadge";
 
@@ -75,13 +75,25 @@ export function PanelLayout({ me, onLogout, children }) {
                 <Users size={18} />
                 Manajemen Users
               </NavLink>
+              <NavLink to="/dashboard/stats" className={navLinkClass} onClick={closeMobile}>
+                <BarChart3 size={18} />
+                Statistik & Laporan
+              </NavLink>
             </>
           )}
         </nav>
 
         <div className="shrink-0 space-y-3 border-t border-slate-100 p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={roleBadge(me.role)}>{me.role === "admin" ? "Admin" : "Warga"}</span>
+            <span className={roleBadge(me.role)}>
+              {me.role === "admin"
+                ? "Admin"
+                : me.role === "pengawas"
+                ? "Pengawas"
+                : me.role === "armada"
+                ? "Armada"
+                : "Warga"}
+            </span>
           </div>
           <button
             type="button"

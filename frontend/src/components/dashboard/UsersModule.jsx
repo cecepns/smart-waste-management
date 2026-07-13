@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Trash2, User } from "lucide-react";
 import { api } from "../../api/client";
@@ -10,10 +11,10 @@ import { ModuleCard } from "./ModuleCard";
 import { Pager } from "./Pager";
 import { SearchBar } from "./SearchBar";
 
-/** Selaras dengan backend MAX_PER_PAGE (10) */
 export const USERS_PER_PAGE = 10;
 
 export function UsersModule() {
+  const { me } = useOutletContext();
   const [search, setSearch] = useState("");
   const q = useDebounce(search);
   const [page, setPage] = useState(1);
@@ -55,40 +56,128 @@ export function UsersModule() {
       <SearchBar value={search} onChange={setSearch} />
       <table className="mt-3 w-full text-sm">
         <thead>
-          <tr className="text-left">
-            <th>Nama</th>
+          <tr className="text-left bg-slate-50 border-b">
+            <th className="py-2">Nama</th>
             <th>Email</th>
             <th>Role</th>
+            <th>Status</th>
             <th>Aksi</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.id} className="border-t">
-              <td className="py-2">{r.full_name}</td>
+              <td className="py-3 font-medium text-slate-800">{r.full_name}</td>
               <td>{r.email}</td>
-              <td>{r.role}</td>
-              <td className="space-x-2">
-                <button type="button" className="rounded border px-2 py-1" onClick={() => setModal(r)}>
-                  <User size={14} className="inline" /> Edit
+              <td>
+                <span className="capitalize font-medium text-slate-600">{r.role}</span>
+              </td>
+              <td>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  r.status === "approved"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : r.status === "pending"
+                    ? "bg-amber-100 text-amber-900"
+                    : r.status === "rejected"
+                    ? "bg-rose-100 text-rose-800"
+                    : "bg-slate-100 text-slate-800"
+                }`}>
+                  {r.status === "approved" ? "Aktif" : r.status === "pending" ? "Menunggu" : r.status === "rejected" ? "Ditolak" : "Nonaktif"}
+                </span>
+              </td>
+              <td className="space-x-2 py-3">
+                <button type="button" className="rounded border px-2 py-1 text-slate-700 hover:bg-slate-50 text-xs font-medium" onClick={() => setModal(r)}>
+                  <User size={12} className="inline mr-1" /> Edit
                 </button>
-                <button
-                  type="button"
-                  className="rounded bg-red-600 px-2 py-1 text-white"
-                  onClick={() =>
-                    confirmToast({
-                      message: `Hapus user "${r.full_name}"? Laporan yang ditulis user ini ikut terhapus.`,
-                      confirmText: "Hapus",
-                      onConfirm: async () => {
-                        await api.delete(`/users/${r.id}`);
-                        toast.success("User dihapus");
+                
+                {r.status === "pending" && (
+                  <>
+                    <button
+                      type="button"
+                      className="rounded bg-emerald-600 px-2 py-1 text-white text-xs font-medium hover:bg-emerald-700"
+                      onClick={async () => {
+                        try {
+                          await api.put(`/users/${r.id}`, { fullName: r.full_name, role: r.role, status: "approved" });
+                          toast.success("User disetujui");
+                          await refreshUsers();
+                        } catch (err) {
+                          toast.error(err.message || "Gagal menyetujui user");
+                        }
+                      }}
+                    >
+                      Setujui
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-rose-600 px-2 py-1 text-white text-xs font-medium hover:bg-rose-700"
+                      onClick={async () => {
+                        try {
+                          await api.put(`/users/${r.id}`, { fullName: r.full_name, role: r.role, status: "rejected" });
+                          toast.success("User ditolak");
+                          await refreshUsers();
+                        } catch (err) {
+                          toast.error(err.message || "Gagal menolak user");
+                        }
+                      }}
+                    >
+                      Tolak
+                    </button>
+                  </>
+                )}
+                {r.status === "approved" && r.id !== me?.id && r.role !== "admin" && (
+                  <button
+                    type="button"
+                    className="rounded bg-slate-600 px-2 py-1 text-white text-xs font-medium hover:bg-slate-700"
+                    onClick={async () => {
+                      try {
+                        await api.put(`/users/${r.id}`, { fullName: r.full_name, role: r.role, status: "inactive" });
+                        toast.success("User dinonaktifkan");
                         await refreshUsers();
-                      },
-                    })
-                  }
-                >
-                  <Trash2 size={14} className="inline" /> Hapus
-                </button>
+                      } catch (err) {
+                        toast.error(err.message || "Gagal menonaktifkan user");
+                      }
+                    }}
+                  >
+                    Nonaktifkan
+                  </button>
+                )}
+                {(r.status === "inactive" || r.status === "rejected") && (
+                  <button
+                    type="button"
+                    className="rounded bg-emerald-600 px-2 py-1 text-white text-xs font-medium hover:bg-emerald-700"
+                    onClick={async () => {
+                      try {
+                        await api.put(`/users/${r.id}`, { fullName: r.full_name, role: r.role, status: "approved" });
+                        toast.success("User diaktifkan");
+                        await refreshUsers();
+                      } catch (err) {
+                        toast.error(err.message || "Gagal mengaktifkan user");
+                      }
+                    }}
+                  >
+                    Aktifkan
+                  </button>
+                )}
+
+                {r.id !== me?.id && (
+                  <button
+                    type="button"
+                    className="rounded bg-red-600 px-2 py-1 text-white text-xs font-medium hover:bg-red-700"
+                    onClick={() =>
+                      confirmToast({
+                        message: `Hapus user "${r.full_name}"? Laporan yang ditulis user ini ikut terhapus.`,
+                        confirmText: "Hapus",
+                        onConfirm: async () => {
+                          await api.delete(`/users/${r.id}`);
+                          toast.success("User dihapus");
+                          await refreshUsers();
+                        },
+                      })
+                    }
+                  >
+                    <Trash2 size={12} className="inline mr-1" /> Hapus
+                  </button>
+                )}
               </td>
             </tr>
           ))}

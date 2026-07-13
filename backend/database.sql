@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   full_name VARCHAR(120) NOT NULL,
   email VARCHAR(120) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  role ENUM('warga', 'admin') NOT NULL DEFAULT 'warga',
+  role ENUM('warga', 'admin', 'pengawas', 'armada') NOT NULL DEFAULT 'warga',
+  status ENUM('pending', 'approved', 'rejected', 'inactive') NOT NULL DEFAULT 'approved',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -15,7 +16,8 @@ CREATE TABLE IF NOT EXISTS locations (
   name VARCHAR(150) NOT NULL,
   latitude DECIMAL(10,7) NOT NULL,
   longitude DECIMAL(10,7) NOT NULL,
-  status ENUM('Bersih', 'Sedang', 'Penuh') NOT NULL DEFAULT 'Bersih',
+  status ENUM('Bersih', 'Laporan Masuk', 'Penuh', 'Sedang Ditangani') NOT NULL DEFAULT 'Bersih',
+  type ENUM('Titik Sampah', 'TPS', 'TPA', 'TPS3R') NOT NULL DEFAULT 'Titik Sampah',
   last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
   photo_url VARCHAR(255) DEFAULT NULL,
   notes TEXT DEFAULT NULL,
@@ -31,7 +33,7 @@ CREATE TABLE IF NOT EXISTS reports (
   location_name VARCHAR(150) NOT NULL,
   latitude DECIMAL(10,7) DEFAULT NULL,
   longitude DECIMAL(10,7) DEFAULT NULL,
-  status ENUM('Bersih', 'Sedang', 'Penuh') NOT NULL,
+  status ENUM('Bersih', 'Laporan Masuk', 'Penuh', 'Sedang Ditangani') NOT NULL,
   photo_url VARCHAR(255) NOT NULL,
   notes TEXT DEFAULT NULL,
   report_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',

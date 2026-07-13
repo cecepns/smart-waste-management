@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['vite.svg'],
       manifest: {
-        name: 'SOMPAH PALOPO',
-        short_name: 'SmartWaste',
+        name: 'Sompah Palopo',
+        short_name: 'Sompah Palopo',
         description: 'Aplikasi monitoring timbulan sampah real-time',
         theme_color: '#16a34a',
         background_color: '#f8fafc',
@@ -19,9 +19,14 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/vite.svg',
+            src: '/logo.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
+          },
+          {
+            src: '/logo.png',
+            sizes: '512x512',
+            type: 'image/png',
           },
         ],
       },

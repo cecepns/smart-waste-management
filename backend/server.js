@@ -95,22 +95,25 @@ app.get("/api/health", (_req, res) => {
 
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { fullName, email, password } = req.body;
+    const { fullName, email, password, role } = req.body;
 
     if (!fullName || !email || !password) {
       return res.status(400).json({ message: "Nama, email, dan password wajib diisi" });
     }
 
-    /* Pendaftaran publik hanya untuk peran warga; admin dibuat lewat panel admin */
-    const normalizedRole = "warga";
+    let normalizedRole = "warga";
+    if (role === "pengawas" || role === "armada" || role === "warga") {
+      normalizedRole = role;
+    }
+    const status = (normalizedRole === "pengawas" || normalizedRole === "armada") ? "pending" : "approved";
     const passwordHash = await bcrypt.hash(password, 10);
 
     const [result] = await db.execute(
-      "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-      [fullName, email, passwordHash, normalizedRole]
+      "INSERT INTO users (full_name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)",
+      [fullName, email, passwordHash, normalizedRole, status]
     );
 
-    const user = { id: result.insertId, full_name: fullName, role: normalizedRole };
+    const user = { id: result.insertId, full_name: fullName, role: normalizedRole, status };
     res.status(201).json({ token: signToken(user), user });
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") {
@@ -138,6 +141,16 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(401).json({ message: "Email atau password salah" });
     }
 
+    if (user.status === "pending") {
+      return res.status(403).json({ message: "Akun Anda sedang menunggu persetujuan Admin" });
+    }
+    if (user.status === "rejected") {
+      return res.status(403).json({ message: "Pendaftaran akun Anda ditolak oleh Admin" });
+    }
+    if (user.status === "inactive") {
+      return res.status(403).json({ message: "Akun Anda dinonaktifkan" });
+    }
+
     res.json({
       token: signToken(user),
       user: {
@@ -145,6 +158,7 @@ app.post("/api/auth/login", async (req, res) => {
         full_name: user.full_name,
         email: user.email,
         role: user.role,
+        status: user.status,
       },
     });
   } catch (error) {
@@ -153,7 +167,7 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 app.get("/api/me", auth, async (req, res) => {
-  const [rows] = await db.execute("SELECT id, full_name, email, role FROM users WHERE id = ?", [
+  const [rows] = await db.execute("SELECT id, full_name, email, role, status FROM users WHERE id = ?", [
     req.user.id,
   ]);
   if (!rows.length) return res.status(404).json({ message: "User tidak ditemukan" });
@@ -164,20 +178,32 @@ app.get("/api/locations", auth, async (req, res) => {
   try {
     const { page, perPage, offset } = getPagination(req.query);
     const search = req.query.search ? `%${req.query.search}%` : "%";
+    const isAll = req.query.all === "true";
 
-    const [rows] = await db.execute(
-      `SELECT id, name, latitude, longitude, status, last_updated, photo_url, notes
-       FROM locations
-       WHERE name LIKE ?
-       ORDER BY last_updated DESC
-       LIMIT ? OFFSET ?`,
-      [search, perPage, offset]
-    );
-
-    const [countRows] = await db.execute("SELECT COUNT(*) AS total FROM locations WHERE name LIKE ?", [
-      search,
-    ]);
-    const total = countRows[0].total;
+    let rows, total;
+    if (isAll) {
+      [rows] = await db.execute(
+        `SELECT id, name, latitude, longitude, status, type, last_updated, photo_url, notes
+         FROM locations
+         WHERE name LIKE ?
+         ORDER BY last_updated DESC`,
+        [search]
+      );
+      total = rows.length;
+    } else {
+      [rows] = await db.execute(
+        `SELECT id, name, latitude, longitude, status, type, last_updated, photo_url, notes
+         FROM locations
+         WHERE name LIKE ?
+         ORDER BY last_updated DESC
+         LIMIT ? OFFSET ?`,
+        [search, perPage, offset]
+      );
+      const [countRows] = await db.execute("SELECT COUNT(*) AS total FROM locations WHERE name LIKE ?", [
+        search,
+      ]);
+      total = countRows[0].total;
+    }
 
     res.json({
       data: rows.map((row) => ({ ...row, marker_color: statusColorMap[row.status] || "gray" })),
@@ -190,15 +216,15 @@ app.get("/api/locations", auth, async (req, res) => {
 
 app.post("/api/locations", auth, adminOnly, async (req, res) => {
   try {
-    const { name, latitude, longitude, status, notes, photo_url } = req.body;
+    const { name, latitude, longitude, status, type, notes, photo_url } = req.body;
     if (!name || latitude == null || longitude == null || !status) {
       return res.status(400).json({ message: "Data lokasi belum lengkap" });
     }
 
     const [result] = await db.execute(
-      `INSERT INTO locations (name, latitude, longitude, status, notes, photo_url, created_by, last_updated)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [name, latitude, longitude, status, notes || null, photo_url || null, req.user.id]
+      `INSERT INTO locations (name, latitude, longitude, status, type, notes, photo_url, created_by, last_updated)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [name, latitude, longitude, status, type || "Titik Sampah", notes || null, photo_url || null, req.user.id]
     );
 
     res.status(201).json({ id: result.insertId, message: "Lokasi berhasil ditambahkan" });
@@ -209,12 +235,12 @@ app.post("/api/locations", auth, adminOnly, async (req, res) => {
 
 app.put("/api/locations/:id", auth, adminOnly, async (req, res) => {
   try {
-    const { name, latitude, longitude, status, notes, photo_url } = req.body;
+    const { name, latitude, longitude, status, type, notes, photo_url } = req.body;
     await db.execute(
       `UPDATE locations
-       SET name = ?, latitude = ?, longitude = ?, status = ?, notes = ?, photo_url = ?, last_updated = NOW()
+       SET name = ?, latitude = ?, longitude = ?, status = ?, type = ?, notes = ?, photo_url = ?, last_updated = NOW()
        WHERE id = ?`,
-      [name, latitude, longitude, status, notes || null, photo_url || null, req.params.id]
+      [name, latitude, longitude, status, type || "Titik Sampah", notes || null, photo_url || null, req.params.id]
     );
     res.json({ message: "Lokasi berhasil diperbarui" });
   } catch (error) {
@@ -243,13 +269,42 @@ app.post("/api/reports", auth, async (req, res) => {
       return res.status(400).json({ message: "Data laporan belum lengkap" });
     }
 
-    await db.execute(
-      `INSERT INTO reports (location_id, reporter_id, location_name, latitude, longitude, status, photo_url, notes, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [locationId || null, req.user.id, locationName, latitude || null, longitude || null, status, photoUrl, notes || null]
-    );
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    res.status(201).json({ message: "Laporan berhasil dikirim" });
+      let finalLocationId = locationId;
+
+      if (finalLocationId) {
+        await connection.execute(
+          `UPDATE locations
+           SET status = 'Laporan Masuk', notes = ?, photo_url = ?, last_updated = NOW()
+           WHERE id = ?`,
+          [notes || null, photoUrl, finalLocationId]
+        );
+      } else {
+        const [insertLoc] = await connection.execute(
+          `INSERT INTO locations (name, latitude, longitude, status, type, photo_url, notes, created_by, last_updated)
+           VALUES (?, ?, ?, 'Laporan Masuk', 'Titik Sampah', ?, ?, ?, NOW())`,
+          [locationName, latitude || 0, longitude || 0, photoUrl, notes || null, req.user.id]
+        );
+        finalLocationId = insertLoc.insertId;
+      }
+
+      await connection.execute(
+        `INSERT INTO reports (location_id, reporter_id, location_name, latitude, longitude, status, photo_url, notes, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [finalLocationId, req.user.id, locationName, latitude || null, longitude || null, status, photoUrl, notes || null]
+      );
+
+      await connection.commit();
+      res.status(201).json({ message: "Laporan berhasil dikirim" });
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
   } catch (error) {
     res.status(500).json({ message: "Gagal kirim laporan", error: error.message });
   }
@@ -259,12 +314,9 @@ app.post("/api/reports", auth, async (req, res) => {
 app.get("/api/public/reports-map", async (_req, res) => {
   try {
     const [rows] = await db.execute(
-      `SELECT id, location_name, latitude, longitude, status, photo_url, report_status, updated_at
-       FROM reports
-       WHERE latitude IS NOT NULL
-         AND longitude IS NOT NULL
-       ORDER BY created_at DESC
-       LIMIT 300`
+      `SELECT id, name AS location_name, latitude, longitude, status, type, photo_url, notes, last_updated
+       FROM locations
+       ORDER BY last_updated DESC`
     );
     res.json({ data: rows });
   } catch (error) {
@@ -389,7 +441,7 @@ app.get("/api/users", auth, adminOnly, async (req, res) => {
     const search = req.query.search ? `%${req.query.search}%` : "%";
 
     const [rows] = await db.execute(
-      `SELECT id, full_name, email, role, created_at
+      `SELECT id, full_name, email, role, status, created_at
        FROM users
        WHERE full_name LIKE ? OR email LIKE ?
        ORDER BY created_at DESC
@@ -414,18 +466,22 @@ app.get("/api/users", auth, adminOnly, async (req, res) => {
 
 app.post("/api/users", auth, adminOnly, async (req, res) => {
   try {
-    const { fullName, email, password, role } = req.body;
+    const { fullName, email, password, role, status } = req.body;
     if (!fullName || !email || !password) {
       return res.status(400).json({ message: "Nama, email, dan password wajib diisi" });
     }
     if (String(password).length < 6) {
       return res.status(400).json({ message: "Password minimal 6 karakter" });
     }
-    const normalizedRole = role === "admin" ? "admin" : "warga";
+    let normalizedRole = "warga";
+    if (["admin", "warga", "pengawas", "armada"].includes(role)) {
+      normalizedRole = role;
+    }
+    const initialStatus = status || (["pengawas", "armada"].includes(normalizedRole) ? "pending" : "approved");
     const passwordHash = await bcrypt.hash(password, 10);
     const [result] = await db.execute(
-      "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-      [fullName, email, passwordHash, normalizedRole]
+      "INSERT INTO users (full_name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)",
+      [fullName, email, passwordHash, normalizedRole, initialStatus]
     );
     res.status(201).json({ message: "User berhasil ditambahkan", id: result.insertId });
   } catch (error) {
@@ -438,10 +494,16 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
 
 app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
   try {
-    const { fullName, role } = req.body;
-    await db.execute("UPDATE users SET full_name = ?, role = ? WHERE id = ?", [
+    const { fullName, role, status } = req.body;
+    let normalizedRole = "warga";
+    if (["admin", "warga", "pengawas", "armada"].includes(role)) {
+      normalizedRole = role;
+    }
+    const normalizedStatus = status || "approved";
+    await db.execute("UPDATE users SET full_name = ?, role = ?, status = ? WHERE id = ?", [
       fullName,
-      role === "admin" ? "admin" : "warga",
+      normalizedRole,
+      normalizedStatus,
       req.params.id,
     ]);
     res.json({ message: "User berhasil diperbarui" });
@@ -463,6 +525,112 @@ app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
     res.json({ message: "User berhasil dihapus" });
   } catch (error) {
     res.status(500).json({ message: "Gagal menghapus user", error: error.message });
+  }
+});
+
+// Update location status based on user role authorization
+app.patch("/api/locations/:id/status", auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const { role } = req.user;
+    const locationId = req.params.id;
+
+    if (!status) {
+      return res.status(400).json({ message: "Status harus diisi" });
+    }
+
+    if (role === "warga") {
+      return res.status(403).json({ message: "Warga tidak berwenang mengubah status lokasi" });
+    }
+
+    if (role === "pengawas") {
+      if (status !== "Penuh" && status !== "Bersih") {
+        return res.status(403).json({ message: "Pengawas hanya dapat mengubah status menjadi Penuh atau Bersih" });
+      }
+    }
+
+    if (role === "armada") {
+      if (status !== "Sedang Ditangani" && status !== "Bersih") {
+        return res.status(403).json({ message: "Petugas Armada hanya dapat mengubah status menjadi Sedang Ditangani atau Bersih" });
+      }
+    }
+
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const [result] = await connection.execute(
+        `UPDATE locations SET status = ?, last_updated = NOW() WHERE id = ?`,
+        [status, locationId]
+      );
+
+      if (result.affectedRows === 0) {
+        await connection.rollback();
+        return res.status(404).json({ message: "Lokasi tidak ditemukan" });
+      }
+
+      // Automatically approve linked pending reports if status is updated to Penuh or Bersih
+      if (status === "Bersih" || status === "Penuh") {
+        await connection.execute(
+          `UPDATE reports SET report_status = 'approved', updated_at = NOW() WHERE location_id = ? AND report_status = 'pending'`,
+          [locationId]
+        );
+      }
+
+      await connection.commit();
+      res.json({ message: `Status lokasi berhasil diperbarui menjadi ${status}` });
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Gagal memperbarui status lokasi", error: error.message });
+  }
+});
+
+// Admin Statistics & Export Data API
+app.get("/api/reports/statistics", auth, adminOnly, async (_req, res) => {
+  try {
+    const [totalRows] = await db.execute("SELECT COUNT(*) AS total FROM reports");
+    const totalReports = totalRows[0].total;
+
+    const [handledRows] = await db.execute("SELECT COUNT(*) AS total FROM reports WHERE report_status = 'approved'");
+    const totalHandled = handledRows[0].total;
+
+    const [dailyRows] = await db.execute(`
+      SELECT DATE(created_at) AS date, COUNT(*) AS total, SUM(CASE WHEN report_status = 'approved' THEN 1 ELSE 0 END) AS resolved
+      FROM reports
+      GROUP BY DATE(created_at)
+      ORDER BY DATE(created_at) ASC
+      LIMIT 30
+    `);
+
+    const [monthlyRows] = await db.execute(`
+      SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS total, SUM(CASE WHEN report_status = 'approved' THEN 1 ELSE 0 END) AS resolved
+      FROM reports
+      GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+      ORDER BY DATE_FORMAT(created_at, '%Y-%m') ASC
+      LIMIT 12
+    `);
+
+    const [exportRows] = await db.execute(`
+      SELECT r.id, r.location_name, r.status AS report_status_value, r.report_status, r.notes, r.created_at, u.full_name AS reporter_name
+      FROM reports r
+      LEFT JOIN users u ON u.id = r.reporter_id
+      ORDER BY r.created_at DESC
+    `);
+
+    res.json({
+      totalReports,
+      totalHandled,
+      dailyStats: dailyRows,
+      monthlyStats: monthlyRows,
+      detailedReports: exportRows,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Gagal memproses statistik", error: error.message });
   }
 });
 

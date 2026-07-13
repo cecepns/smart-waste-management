@@ -69,6 +69,8 @@ export function CreateUserModal({ onClose, onDone }) {
           >
             <option value="warga">Warga</option>
             <option value="admin">Admin</option>
+            <option value="pengawas">Pengawas Lingkungan</option>
+            <option value="armada">Petugas Armada</option>
           </select>
         </label>
         <button
