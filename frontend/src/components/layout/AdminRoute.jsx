@@ -4,5 +4,5 @@ export function AdminRoute({ me }) {
   if (me?.role !== "admin") {
     return <Navigate to="/map" replace />;
   }
-  return <Outlet />;
+  return <Outlet context={{ me }} />;
 }
