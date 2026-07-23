@@ -634,6 +634,84 @@ app.get("/api/reports/statistics", auth, adminOnly, async (_req, res) => {
   }
 });
 
+// === WASTE LOGS API ENDPOINTS ===
+
+// 1. Public route: Get last 30 daily logs
+app.get("/api/public/waste-logs", async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      "SELECT id, DATE_FORMAT(log_date, '%Y-%m-%d') as log_date, amount_kg FROM waste_logs ORDER BY log_date ASC LIMIT 30"
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ message: "Gagal mengambil data timbulan sampah", error: error.message });
+  }
+});
+
+// 2. Admin route: Get all daily logs
+app.get("/api/admin/waste-logs", auth, adminOnly, async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      "SELECT id, DATE_FORMAT(log_date, '%Y-%m-%d') as log_date, amount_kg FROM waste_logs ORDER BY log_date DESC"
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ message: "Gagal mengambil data timbulan sampah", error: error.message });
+  }
+});
+
+// 3. Admin route: Add a daily log
+app.post("/api/admin/waste-logs", auth, adminOnly, async (req, res) => {
+  try {
+    const { logDate, amountKg } = req.body;
+    if (!logDate || amountKg === undefined) {
+      return res.status(400).json({ message: "Tanggal dan jumlah sampah wajib diisi" });
+    }
+    const [result] = await db.execute(
+      "INSERT INTO waste_logs (log_date, amount_kg) VALUES (?, ?)",
+      [logDate, amountKg]
+    );
+    res.status(201).json({ id: result.insertId, log_date: logDate, amount_kg: amountKg });
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "Data untuk tanggal tersebut sudah ada" });
+    }
+    res.status(500).json({ message: "Gagal menambahkan data", error: error.message });
+  }
+});
+
+// 4. Admin route: Update a daily log
+app.put("/api/admin/waste-logs/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { logDate, amountKg } = req.body;
+    if (!logDate || amountKg === undefined) {
+      return res.status(400).json({ message: "Tanggal dan jumlah sampah wajib diisi" });
+    }
+    await db.execute(
+      "UPDATE waste_logs SET log_date = ?, amount_kg = ? WHERE id = ?",
+      [logDate, amountKg, id]
+    );
+    res.json({ message: "Data berhasil diperbarui", data: { id, log_date: logDate, amount_kg: amountKg } });
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "Data untuk tanggal tersebut sudah ada" });
+    }
+    res.status(500).json({ message: "Gagal memperbarui data", error: error.message });
+  }
+});
+
+// 5. Admin route: Delete a daily log
+app.delete("/api/admin/waste-logs/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.execute("DELETE FROM waste_logs WHERE id = ?", [id]);
+    res.json({ message: "Data berhasil dihapus" });
+  } catch (error) {
+    res.status(500).json({ message: "Gagal menghapus data", error: error.message });
+  }
+});
+
 app.use((err, _req, res, _next) => {
   res.status(500).json({ message: "Server error", error: err.message });
 });

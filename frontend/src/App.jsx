@@ -10,6 +10,7 @@ import { LocationsPage } from "./pages/dashboard/LocationsPage";
 import { ReportsPage } from "./pages/dashboard/ReportsPage";
 import { UsersPage } from "./pages/dashboard/UsersPage";
 import { StatsPage } from "./pages/dashboard/StatsPage";
+import { WasteLogsPage } from "./pages/dashboard/WasteLogsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MapPage } from "./pages/MapPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -100,6 +101,7 @@ export default function App() {
             <Route path="/dashboard/locations" element={<LocationsPage />} />
             <Route path="/dashboard/users" element={<UsersPage />} />
             <Route path="/dashboard/stats" element={<StatsPage />} />
+            <Route path="/dashboard/waste-logs" element={<WasteLogsPage />} />
           </Route>
         </Route>
 

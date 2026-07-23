@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
-import { BookOpen, Layers, LogOut, MapPin, Menu, Send, Shield, Users, X, BarChart3 } from "lucide-react";
+import { BookOpen, Layers, LogOut, MapPin, Menu, Send, Shield, Users, X, BarChart3, TrendingUp } from "lucide-react";
 import logo from "../../assets/logo.png";
 import { roleBadge } from "../../utils/roleBadge";
 
@@ -78,6 +78,10 @@ export function PanelLayout({ me, onLogout, children }) {
               <NavLink to="/dashboard/stats" className={navLinkClass} onClick={closeMobile}>
                 <BarChart3 size={18} />
                 Statistik & Laporan
+              </NavLink>
+              <NavLink to="/dashboard/waste-logs" className={navLinkClass} onClick={closeMobile}>
+                <TrendingUp size={18} />
+                Data Timbulan Sampah
               </NavLink>
             </>
           )}

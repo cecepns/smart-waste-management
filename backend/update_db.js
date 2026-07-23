@@ -65,6 +65,17 @@ async function migrate() {
       ALTER TABLE reports MODIFY COLUMN status ENUM('Bersih', 'Laporan Masuk', 'Penuh', 'Sedang Ditangani') NOT NULL
     `);
 
+    // 6. Create waste_logs table if not exists
+    console.log("Creating waste_logs table if not exists...");
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS waste_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        log_date DATE NOT NULL UNIQUE,
+        amount_kg DECIMAL(10,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     console.log("Migrations successfully completed!");
   } catch (error) {
     console.error("Migration failed:", error);

@@ -43,6 +43,13 @@ CREATE TABLE IF NOT EXISTS reports (
   CONSTRAINT fk_reports_reporter FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS waste_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  log_date DATE NOT NULL UNIQUE,
+  amount_kg DECIMAL(10,2) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT INTO users (full_name, email, password_hash, role)
 VALUES ('Administrator', 'admin@smartwaste.local', '$2b$10$9EizA9vY9X6i4M1W6x1a9.XtVjehdWl0M6S01qmPvvrLpzjAU6Y0G', 'admin')
 ON DUPLICATE KEY UPDATE email = email;

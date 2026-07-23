@@ -64,6 +64,7 @@ export function LandingPage() {
   const [activePrinciple, setActivePrinciple] = useState(null);
   const [locations, setLocations] = useState([]);
   const [zoom, setZoom] = useState(12);
+  const [wasteLogs, setWasteLogs] = useState([]);
   const selectedPrinciple = principles.find((item) => item.key === activePrinciple) || null;
 
   useEffect(() => {
@@ -71,6 +72,11 @@ export function LandingPage() {
       .get("/public/reports-map")
       .then((res) => setLocations(res.data.data || []))
       .catch(() => setLocations([]));
+
+    api
+      .get("/public/waste-logs")
+      .then((res) => setWasteLogs(res.data || []))
+      .catch(() => setWasteLogs([]));
   }, []);
 
   const getMarkerStyle = (item) => {
@@ -324,6 +330,154 @@ export function LandingPage() {
                 ))}
               </MapContainer>
             </div>
+          </div>
+        </section>
+
+        {/* Daily Waste Generation Chart */}
+        <section className="relative mx-auto w-full max-w-7xl px-4 pb-12 md:px-6">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-100 md:p-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-extrabold text-slate-900 md:text-2xl">Grafik Timbulan Sampah Harian</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Visualisasi timbulan volume sampah harian di Kota Palopo yang dicatat oleh Dinas Lingkungan Hidup.
+              </p>
+            </div>
+            
+            {/* SVG Chart Implementation */}
+            {(() => {
+              if (wasteLogs.length === 0) {
+                return (
+                  <div className="flex h-48 items-center justify-center text-sm text-slate-400 font-medium bg-slate-50/50 rounded-2xl border border-dashed">
+                    Belum ada data timbulan sampah untuk ditampilkan.
+                  </div>
+                );
+              }
+
+              const width = 800;
+              const height = 300;
+              const paddingLeft = 60;
+              const paddingRight = 30;
+              const paddingTop = 20;
+              const paddingBottom = 40;
+
+              const chartWidth = width - paddingLeft - paddingRight;
+              const chartHeight = height - paddingTop - paddingBottom;
+
+              const amounts = wasteLogs.map((d) => Number(d.amount_kg));
+              const maxAmount = Math.max(...amounts, 10);
+              const minAmount = 0;
+
+              const points = wasteLogs.map((d, index) => {
+                const x = paddingLeft + (index / Math.max(wasteLogs.length - 1, 1)) * chartWidth;
+                const y = paddingTop + chartHeight - ((Number(d.amount_kg) - minAmount) / (maxAmount - minAmount)) * chartHeight;
+                return { x, y, data: d };
+              });
+
+              let linePath = "";
+              if (points.length > 0) {
+                linePath = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map((p) => `L ${p.x} ${p.y}`).join(" ");
+              }
+
+              let areaPath = "";
+              if (points.length > 0) {
+                areaPath = `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`;
+              }
+
+              const yTicks = 4;
+              const yTicksValues = Array.from({ length: yTicks + 1 }, (_, i) => minAmount + (maxAmount - minAmount) * (i / yTicks));
+
+              return (
+                <div className="w-full overflow-x-auto">
+                  <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[600px] h-auto overflow-visible select-none">
+                    <defs>
+                      <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#0d9488" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#0d9488" stopOpacity="0.00" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Grid lines */}
+                    {yTicksValues.map((val, i) => {
+                      const y = paddingTop + chartHeight - ((val - minAmount) / (maxAmount - minAmount)) * chartHeight;
+                      return (
+                        <g key={i}>
+                          <line
+                            x1={paddingLeft}
+                            y1={y}
+                            x2={width - paddingRight}
+                            y2={y}
+                            stroke="#f1f5f9"
+                            strokeWidth="1.5"
+                            strokeDasharray="4 4"
+                          />
+                          <text
+                            x={paddingLeft - 10}
+                            y={y + 4}
+                            textAnchor="end"
+                            className="text-[10px] font-bold text-slate-400 font-sans"
+                          >
+                            {Math.round(val).toLocaleString("id-ID")} kg
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* X axis labels (Dates) */}
+                    {points.map((p, i) => {
+                      const step = Math.ceil(wasteLogs.length / 7) || 1;
+                      if (i % step !== 0 && i !== wasteLogs.length - 1) return null;
+
+                      const dateStr = dayjs(p.data.log_date).format("DD MMM");
+                      return (
+                        <text
+                          key={i}
+                          x={p.x}
+                          y={height - paddingBottom + 20}
+                          textAnchor="middle"
+                          className="text-[10px] font-bold text-slate-400 font-sans"
+                        >
+                          {dateStr}
+                        </text>
+                      );
+                    })}
+
+                    {/* Area under the line */}
+                    {areaPath && <path d={areaPath} fill="url(#chart-gradient)" />}
+
+                    {/* Line chart */}
+                    {linePath && (
+                      <path
+                        d={linePath}
+                        fill="none"
+                        stroke="#0d9488"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="drop-shadow-[0_2px_4px_rgba(13,148,136,0.3)]"
+                      />
+                    )}
+
+                    {/* Circular Points */}
+                    {points.map((p, i) => (
+                      <g key={i} className="group cursor-pointer">
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r="4"
+                          fill="#ffffff"
+                          stroke="#0d9488"
+                          strokeWidth="2.5"
+                          className="transition duration-200 hover:r-6 hover:stroke-emerald-500"
+                        />
+                        <title>
+                          {dayjs(p.data.log_date).format("dddd, DD MMMM YYYY")}: {Number(p.data.amount_kg).toLocaleString("id-ID")} kg
+                        </title>
+                      </g>
+                    ))}
+                  </svg>
+                </div>
+              );
+            })()}
           </div>
         </section>
 
