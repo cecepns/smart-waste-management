@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-hook-form"; // Wait, in the original imports it was "react-router-dom"
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { ArrowRight, Leaf, LogIn, Recycle, RotateCcw, X, Zap, UserPlus, ShieldAlert, CheckCircle2, AlertTriangle, HelpCircle } from "lucide-react";
-import { CircleMarker, MapContainer, Popup, TileLayer, useMapEvents } from "react-leaflet";
+import { ArrowRight, Leaf, LogIn, Recycle, RotateCcw, X, Zap, UserPlus, ShieldAlert, CheckCircle2, AlertTriangle, HelpCircle, MapPin } from "lucide-react";
+import { CircleMarker, MapContainer, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import Select from "react-select";
 import { api, apiBase } from "../api/client";
 import heroImage from "../assets/hero-image.jpeg";
 import logo from "../assets/logo.png";
 import dayjs from "dayjs";
+import toast from "react-hot-toast";
 
 const principles = [
   {
@@ -60,11 +61,114 @@ function MapZoomTracker({ onChange }) {
   return null;
 }
 
+function MapController({ targetMarker }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (targetMarker && targetMarker.lat && targetMarker.lng && targetMarker.isValidCoord) {
+      map.flyTo([targetMarker.lat, targetMarker.lng], 17, {
+        animate: true,
+        duration: 1.2,
+      });
+    }
+  }, [targetMarker, map]);
+
+  return null;
+}
+
+// Helper to distribute markers with identical coordinates in a small circle around the center point
+const getProcessedMarkers = (rawLocations, getMarkerStyle) => {
+  const coordGroups = {};
+
+  return rawLocations
+    .filter((loc) => loc.latitude != null && loc.longitude != null)
+    .map((item) => {
+      const rawLat = Number(item.latitude);
+      const rawLng = Number(item.longitude);
+
+      const isValidCoord = Math.abs(rawLat) > 0.001 && Math.abs(rawLng) > 0.001;
+
+      if (!isValidCoord) {
+        return {
+          ...item,
+          lat: rawLat,
+          lng: rawLng,
+          rawLat,
+          rawLng,
+          isValidCoord: false,
+          style: getMarkerStyle(item),
+        };
+      }
+
+      const key = `${rawLat.toFixed(5)},${rawLng.toFixed(5)}`;
+      if (!coordGroups[key]) {
+        coordGroups[key] = 0;
+      }
+      const indexInGroup = coordGroups[key];
+      coordGroups[key] += 1;
+
+      let finalLat = rawLat;
+      let finalLng = rawLng;
+
+      if (indexInGroup > 0) {
+        // Distribute overlapping markers in small spiral ring (~12-20 meters)
+        const ring = Math.floor(indexInGroup / 6) + 1;
+        const angle = (indexInGroup % 6) * ((2 * Math.PI) / 6) + ring * 0.4;
+        const radius = 0.00012 * ring; // ~13m per ring
+
+        finalLat = rawLat + radius * Math.cos(angle);
+        finalLng = rawLng + (radius * Math.sin(angle)) / Math.cos((rawLat * Math.PI) / 180);
+      }
+
+      return {
+        ...item,
+        lat: finalLat,
+        lng: finalLng,
+        rawLat,
+        rawLng,
+        isValidCoord: true,
+        style: getMarkerStyle(item),
+      };
+    });
+};
+
+const customSelectStyles = {
+  control: (base, state) => ({
+    ...base,
+    borderRadius: "0.75rem",
+    borderColor: state.isFocused ? "#0d9488" : "#cbd5e1",
+    boxShadow: state.isFocused ? "0 0 0 2px rgba(13, 148, 136, 0.2)" : "none",
+    "&:hover": {
+      borderColor: "#0d9488",
+    },
+    padding: "2px 4px",
+    fontSize: "0.875rem",
+    backgroundColor: "#ffffff",
+  }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected ? "#0d9488" : state.isFocused ? "#f0fdfa" : "white",
+    color: state.isSelected ? "white" : "#1e293b",
+    cursor: "pointer",
+    fontSize: "0.875rem",
+    padding: "8px 12px",
+  }),
+  menu: (base) => ({
+    ...base,
+    borderRadius: "0.75rem",
+    overflow: "hidden",
+    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+    zIndex: 9999,
+  }),
+};
+
 export function LandingPage() {
   const [activePrinciple, setActivePrinciple] = useState(null);
   const [locations, setLocations] = useState([]);
   const [zoom, setZoom] = useState(12);
   const [wasteLogs, setWasteLogs] = useState([]);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const markerRefs = useRef({});
   const selectedPrinciple = principles.find((item) => item.key === activePrinciple) || null;
 
   useEffect(() => {
@@ -106,15 +210,83 @@ export function LandingPage() {
   };
 
   const markers = useMemo(
-    () =>
-      locations.map((item) => ({
-        ...item,
-        lat: Number(item.latitude),
-        lng: Number(item.longitude),
-        style: getMarkerStyle(item),
-      })),
+    () => getProcessedMarkers(locations, getMarkerStyle),
     [locations]
   );
+
+  const selectOptions = useMemo(() => {
+    return markers.map((item, index) => ({
+      value: item.id,
+      orderIndex: index + 1,
+      label: `${index + 1}. ${item.location_name || item.name || "Titik Sampah"} (${item.status})`,
+      item,
+    }));
+  }, [markers]);
+
+  const targetMarker = useMemo(() => {
+    if (!selectedOption) return null;
+    return markers.find((m) => m.id === selectedOption.value) || null;
+  }, [selectedOption, markers]);
+
+  const handleSelectLocation = (option) => {
+    setSelectedOption(option);
+    if (option && option.item) {
+      const marker = markers.find((m) => m.id === option.item.id);
+      if (marker && marker.isValidCoord) {
+        setTimeout(() => {
+          if (markerRefs.current[marker.id]) {
+            markerRefs.current[marker.id].openPopup();
+          }
+        }, 300);
+      } else {
+        toast.error("Titik koordinat tidak valid (0, 0)");
+      }
+    }
+  };
+
+  const formatOptionLabel = ({ item, orderIndex }, { context }) => {
+    let statusBadgeColor = "bg-slate-100 text-slate-700";
+    if (item.status === "Bersih") statusBadgeColor = "bg-emerald-100 text-emerald-800";
+    else if (item.status === "Laporan Masuk") statusBadgeColor = "bg-amber-100 text-amber-900";
+    else if (item.status === "Penuh") statusBadgeColor = "bg-rose-100 text-rose-800";
+    else if (item.status === "Sedang Ditangani") statusBadgeColor = "bg-blue-100 text-blue-800";
+
+    const name = item.location_name || item.name || "Titik Sampah";
+
+    if (context === "value") {
+      return (
+        <div className="flex items-center gap-2 text-xs md:text-sm">
+          <span className="font-bold text-slate-800">{orderIndex}. {name}</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadgeColor}`}>
+            {item.status}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-between gap-2 py-0.5">
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-slate-900 truncate">
+              {orderIndex}. {name}
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">
+              ({item.type || "Titik Sampah"})
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-500 truncate">
+            Koordinat: {Number(item.latitude).toFixed(4)}, {Number(item.longitude).toFixed(4)}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusBadgeColor}`}>
+            {item.status}
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   // Dynamic statistics calculation
   const stats = useMemo(() => {
@@ -224,12 +396,15 @@ export function LandingPage() {
 
         {/* Map Section */}
         <section className="relative mx-auto w-full max-w-7xl px-4 pb-12 md:px-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-100 md:p-6">
-            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-100 md:p-6 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-extrabold text-slate-900 md:text-2xl">Peta Sebaran Laporan Palopo</h2>
+                <h2 className="text-xl font-extrabold text-slate-900 md:text-2xl flex items-center gap-2">
+                  <MapPin className="text-teal-600" size={24} />
+                  Peta Sebaran Laporan Palopo
+                </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  Pantau titik laporan penimbunan sampah serta lokasi fasilitas penampungan (TPS, TPA, TPS3R) secara real-time.
+                  Pantau {markers.length} titik laporan penimbunan sampah serta lokasi fasilitas (TPS, TPA, TPS3R) secara real-time.
                 </p>
               </div>
 
@@ -245,6 +420,21 @@ export function LandingPage() {
                   TPA: {stats.tpa}
                 </span>
               </div>
+            </div>
+
+            {/* Quick Search Dropdown Bar */}
+            <div className="w-full">
+              <Select
+                value={selectedOption}
+                onChange={handleSelectLocation}
+                options={selectOptions}
+                formatOptionLabel={formatOptionLabel}
+                styles={customSelectStyles}
+                placeholder="🔍 Cari titik / nama jalan / status lokasi..."
+                isClearable
+                isSearchable
+                noOptionsMessage={() => "Titik lokasi tidak ditemukan"}
+              />
             </div>
 
             <div className="relative overflow-hidden rounded-2xl border border-slate-100 z-0">
@@ -282,9 +472,13 @@ export function LandingPage() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <MapZoomTracker onChange={setZoom} />
+                <MapController targetMarker={targetMarker} />
                 {markers.map((item) => (
                   <CircleMarker
                     key={item.id}
+                    ref={(el) => {
+                      if (el) markerRefs.current[item.id] = el;
+                    }}
                     center={[item.lat, item.lng]}
                     radius={getMarkerRadius(zoom)}
                     pathOptions={{
